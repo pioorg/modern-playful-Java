@@ -1,0 +1,37 @@
+{
+  "mappings" : {
+    "properties" : {
+      "@timestamp" : {
+        "type" : "date"
+      },
+      "embedding" : {
+        "type" : "dense_vector",
+        "dims" : 512,
+        "index" : true,
+        "similarity" : "cosine",
+        "index_options" : {
+          "type" : "int8_hnsw",
+          "m" : 16,
+          "ef_construction" : 100
+        }
+      },
+      "filename" : {
+        "type" : "keyword"
+      },
+      "full-path" : {
+        "type" : "keyword"
+      },
+      "price" : {
+        "properties" : {
+          "currency" : {
+            "type" : "keyword"
+          },
+          "value" : {
+            "type" : "scaled_float",
+            "scaling_factor" : 100.0
+          }
+        }
+      }
+    }
+  }
+}
