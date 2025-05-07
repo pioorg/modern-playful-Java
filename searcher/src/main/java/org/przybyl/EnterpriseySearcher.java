@@ -82,45 +82,17 @@ public class EnterpriseySearcher {
             .toList();
     }
 
-    static SearchResult executeSearch(QueryWithVector qwv,
-                                      String indexName,
-                                      ElasticsearchClient esClient) {
-
-        // kick off both searches on ForkJoinPool.commonPool()
-        CompletableFuture<List<CatalogueItem>> knnSearchFuture =
-            CompletableFuture.supplyAsync(() -> {
-                try {
-                    return performKnnSearch(qwv.vector(), indexName, esClient);
-                } catch (IOException e) {
-                    throw new CompletionException(e);
-                }
-            });
-
-        CompletableFuture<List<CatalogueItem>> classicSearchFuture =
-            CompletableFuture.supplyAsync(() -> {
-                try {
-                    return performClassicSearch(qwv.query(), indexName, esClient);
-                } catch (IOException e) {
-                    throw new CompletionException(e);
-                }
-            });
-
-        // remember to cancel a future if the other one fails
-        Function<Throwable, List<CatalogueItem>> cancelOther = ex -> {
-            knnSearchFuture.cancel(true);
-            classicSearchFuture.cancel(true);
-            // re‑throw inside CompletionException so join() propagates it
-            throw new CompletionException(ex);
-        };
-        knnSearchFuture.exceptionally(cancelOther);
-        classicSearchFuture.exceptionally(cancelOther);
-
-        return knnSearchFuture.thenCombine(classicSearchFuture, (k, c) -> {
-                var combined = combineUsingRRF(Arrays.asList(k, c), 60, TOP_K);
-                return new SearchResult(qwv.query(), combined);
-            })
-            // waits, re‑throws on first failure
-            .join();
+    static SearchResult executeSearch(QueryWithVector qwv, String indexName, ElasticsearchClient esClient) {
+        try (var scope = new StructuredTaskScope.ShutdownOnFailure()) {
+            var knnSearch = scope.fork(() -> performKnnSearch(qwv.vector(), indexName, esClient));
+            var classicSearch = scope.fork(() -> performClassicSearch(qwv.query(), indexName, esClient));
+            scope.join();
+            scope.throwIfFailed();
+            var searchResults = combineUsingRRF(List.of(knnSearch.get(), classicSearch.get()), 60, TOP_K);
+            return new SearchResult(qwv.query(), searchResults);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 
     static List<Float> obtainTextEmbedding(String text) {
