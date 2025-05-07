@@ -41,7 +41,6 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Scanner;
 import java.util.StringJoiner;
 import java.util.concurrent.CompletableFuture;
@@ -114,7 +113,7 @@ public class EnterpriseySearcher {
         CompletableFuture<List<CatalogueItem>> knnSearchFuture =
             CompletableFuture.supplyAsync(() -> {
                 try {
-                    return performKnnSearch(qwv.getVector(), indexName, esClient);
+                    return performKnnSearch(qwv.vector(), indexName, esClient);
                 } catch (IOException e) {
                     throw new CompletionException(e);
                 }
@@ -123,7 +122,7 @@ public class EnterpriseySearcher {
         CompletableFuture<List<CatalogueItem>> classicSearchFuture =
             CompletableFuture.supplyAsync(() -> {
                 try {
-                    return performClassicSearch(qwv.getQuery(), indexName, esClient);
+                    return performClassicSearch(qwv.query(), indexName, esClient);
                 } catch (IOException e) {
                     throw new CompletionException(e);
                 }
@@ -141,7 +140,7 @@ public class EnterpriseySearcher {
 
         return knnSearchFuture.thenCombine(classicSearchFuture, (k, c) -> {
                 var combined = combineUsingRRF(Arrays.asList(k, c), 60, TOP_K);
-                return new SearchResult(qwv.getQuery(), combined);
+                return new SearchResult(qwv.query(), combined);
             })
             // waits, re‑throws on first failure
             .join();
@@ -274,42 +273,13 @@ public class EnterpriseySearcher {
     }
 }
 
-final class QueryWithVector {
-    private final String query;
-    private final List<Float> vector;
-
-    QueryWithVector(String query, List<Float> vector) {
-        this.query = query;
-        this.vector = vector;
-    }
+record QueryWithVector(String query, List<Float> vector) {
 
     @Override
     public String toString() {
         return "QueryWithVector[" +
             "query=" + query + ", " +
             "vector=" + vector + ']';
-    }
-
-    public String getQuery() {
-        return query;
-    }
-
-    public List<Float> getVector() {
-        return vector;
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (obj == this) return true;
-        if (obj == null || obj.getClass() != this.getClass()) return false;
-        var that = (QueryWithVector) obj;
-        return Objects.equals(this.query, that.query) &&
-            Objects.equals(this.vector, that.vector);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(query, vector);
     }
 
 }
