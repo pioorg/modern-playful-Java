@@ -76,17 +76,10 @@ public class EnterpriseySearcher {
     }
 
     static List<SearchResult> runSearch(List<String> queries, ElasticsearchClient esClient, String indexName) {
-        try (ExecutorService executor = Executors.newFixedThreadPool(5);) {
-            List<CompletableFuture<SearchResult>> futures = queries.stream()
-                .map(query -> CompletableFuture.supplyAsync(() -> {
-                    QueryWithVector qwv = new QueryWithVector(query, obtainTextEmbedding(query));
-                    return executeSearch(qwv, indexName, esClient);
-                }, executor))
-                .collect(Collectors.toList());
-            return futures.stream()
-                .map(CompletableFuture::join)
-                .collect(Collectors.toList());
-        }
+        return queries.stream()
+            .gather(Gatherers.mapConcurrent(5, query -> new QueryWithVector(query, obtainTextEmbedding(query))))
+            .gather(Gatherers.mapConcurrent(5, qwv -> executeSearch(qwv, indexName, esClient)))
+            .toList();
     }
 
     static SearchResult executeSearch(QueryWithVector qwv,
