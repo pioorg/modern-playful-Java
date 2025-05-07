@@ -21,14 +21,9 @@ import module java.base;
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import co.elastic.clients.elasticsearch.core.SearchResponse;
 import co.elastic.clients.elasticsearch.core.search.Hit;
-import co.elastic.clients.json.jackson.JacksonJsonpMapper;
-import co.elastic.clients.transport.ElasticsearchTransport;
-import co.elastic.clients.transport.rest_client.RestClientTransport;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import org.apache.http.HttpHost;
-import org.elasticsearch.client.RestClient;
 
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -45,15 +40,9 @@ public class EnterpriseySearcher {
         List<String> queries = obtainQueries();
 //        List<String> queries = List.of("orange", "apple", "Heckscheibenwaschanlage", "computer", "basket");
 
-        try (RestClient restClient = RestClient.builder(HttpHost.create(System.getenv("ES_URL")))
-            .setDefaultHeaders(new org.apache.http.Header[]{
-                new org.apache.http.message.BasicHeader("Authorization", "ApiKey " + System.getenv("ES_API_KEY"))
-            })
-            .build()) {
-
-            JacksonJsonpMapper jsonpMapper = new JacksonJsonpMapper();
-            ElasticsearchTransport transport = new RestClientTransport(restClient, jsonpMapper);
-            ElasticsearchClient esClient = new ElasticsearchClient(transport);
+        try (var esClient = ElasticsearchClient.of(b -> b
+            .host(System.getenv("ES_URL"))
+            .apiKey(System.getenv("ES_API_KEY")))) {
 
             runSearch(queries, esClient, "catalogue")
                 .forEach(System.out::println);
