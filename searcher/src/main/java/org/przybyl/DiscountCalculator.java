@@ -18,17 +18,18 @@ package org.przybyl;
 
 public class DiscountCalculator {
     int memberDiscountPercentage(boolean isGoldMember) {
-        return isGoldMember ? 20 : 5;
+        return switch (isGoldMember) {
+            case true -> 20;
+            case false -> 5;
+        };
     }
 
     int itemDiscountPercentage(int items) {
-        if (items == 2) {
-            return 5;
-        } else if (items == 3 || items == 4) {
-            return 10;
-        } else if (items >= 5) {
-            return 20;
-        }
-        return 0;
+        return switch (items) {
+            case 2 -> 5;
+            case 3, 4 -> 10;
+            case int i when i >= 5 -> 20;
+            default -> 0;
+        };
     }
 }
