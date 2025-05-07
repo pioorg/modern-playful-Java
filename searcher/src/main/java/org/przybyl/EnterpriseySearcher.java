@@ -46,7 +46,10 @@ import java.util.Scanner;
 import java.util.StringJoiner;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 public class EnterpriseySearcher {
 
@@ -90,11 +93,17 @@ public class EnterpriseySearcher {
     }
 
     static List<SearchResult> runSearch(List<String> queries, ElasticsearchClient esClient, String indexName) {
-        return queries.stream()
-            .parallel()
-            .map(query -> new QueryWithVector(query, obtainTextEmbedding(query)))
-            .map(qwv -> executeSearch(qwv, indexName, esClient))
-            .toList();
+        try (ExecutorService executor = Executors.newFixedThreadPool(5);) {
+            List<CompletableFuture<SearchResult>> futures = queries.stream()
+                .map(query -> CompletableFuture.supplyAsync(() -> {
+                    QueryWithVector qwv = new QueryWithVector(query, obtainTextEmbedding(query));
+                    return executeSearch(qwv, indexName, esClient);
+                }, executor))
+                .collect(Collectors.toList());
+            return futures.stream()
+                .map(CompletableFuture::join)
+                .collect(Collectors.toList());
+        }
     }
 
     static SearchResult executeSearch(QueryWithVector qwv,
