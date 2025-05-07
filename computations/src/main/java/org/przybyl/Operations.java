@@ -1,5 +1,9 @@
 package org.przybyl;
 
+import jdk.incubator.vector.DoubleVector;
+import jdk.incubator.vector.VectorSpecies;
+import jdk.incubator.vector.VectorOperators;
+
 /// Please remember to run with a VM option
 /// `--add-modules jdk.incubator.vector`
 /// For more details, please see [JEP-489](https://openjdk.org/jeps/489).
@@ -106,18 +110,66 @@ class Scalar implements MathOps {
 }
 
 class Vector implements MathOps {
+    private static final VectorSpecies<Double> SPECIES = DoubleVector.SPECIES_PREFERRED;
+
     // Vector dot product implementation using Panama vectors
     public double dotProduct(double[] a, double[] b) {
-        return 0;
+        double sum = 0.0;
+        int i = 0;
+        int upperBound = SPECIES.loopBound(a.length);
+
+        // Process vectors in chunks
+        for (; i < upperBound; i += SPECIES.length()) {
+            var va = DoubleVector.fromArray(SPECIES, a, i);
+            var vb = DoubleVector.fromArray(SPECIES, b, i);
+            var vmul = va.mul(vb);
+            sum += vmul.reduceLanes(VectorOperators.ADD);
+        }
+
+        // Handle remaining elements
+        for (; i < a.length; i++) {
+            sum += a[i] * b[i];
+        }
+
+        return sum;
     }
 
     // Vector element-wise addition: c = a + b
     public void add(double[] a, double[] b, double[] c) {
+        int i = 0;
+        int upperBound = SPECIES.loopBound(a.length);
 
+        // Process vectors in chunks
+        for (; i < upperBound; i += SPECIES.length()) {
+            var va = DoubleVector.fromArray(SPECIES, a, i);
+            var vb = DoubleVector.fromArray(SPECIES, b, i);
+            va.add(vb).intoArray(c, i);
+        }
+
+        // Handle remaining elements
+        for (; i < a.length; i++) {
+            c[i] = a[i] + b[i];
+        }
     }
 
     // Vector Euclidean norm: ||a|| = sqrt(sum(a[i]^2))
     public double euclideanNorm(double[] a) {
-       return 0;
+        double sum = 0.0;
+        int i = 0;
+        int upperBound = SPECIES.loopBound(a.length);
+
+        // Process vectors in chunks
+        for (; i < upperBound; i += SPECIES.length()) {
+            var va = DoubleVector.fromArray(SPECIES, a, i);
+            var vsquared = va.mul(va);
+            sum += vsquared.reduceLanes(VectorOperators.ADD);
+        }
+
+        // Handle remaining elements
+        for (; i < a.length; i++) {
+            sum += a[i] * a[i];
+        }
+
+        return Math.sqrt(sum);
     }
 }
